@@ -4,9 +4,6 @@ A production-ready FastAPI application that intelligently classifies software li
 
 ## 📋 Table of Contents
 
-<details>
-<summary>Click to expand</summary>
-
 - [Technical Approach](#technical-approach)
 - [Architecture Decisions](#architecture-decisions)
 - [Future Improvements](#future-improvements)
@@ -15,10 +12,9 @@ A production-ready FastAPI application that intelligently classifies software li
 - [Testing](#testing)
 - [Docker Deployment](#docker-deployment)
 
-</details>
-
 ---
 
+<a id="technical-approach"></a>
 ## 🔬 Technical Approach
 
 ### Classification Strategy
