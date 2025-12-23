@@ -41,7 +41,7 @@ The system uses a **prompt-engineered LLM approach** with Groq's Llama 3.1 8B mo
 ```
 CSV Upload → Parse & Validate → Batch Process → LLM Classification → Validate & Store → Return Results
      ↓              ↓                  ↓                 ↓                    ↓              ↓
- (API Layer)  (Utils)         (Service)        (External)           (Validation)      (Models)
+(API Layer)      (Utils)           (Service)         (External)          (Validation)     (Models)
 ```
 
 ---
