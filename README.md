@@ -36,14 +36,6 @@ The system uses a **prompt-engineered LLM approach** with Groq's Llama 3.1 8B mo
    - Graceful error messages in explanations
    - Continuation of batch processing despite individual failures
 
-### Data Flow
-
-```
-CSV Upload → Parse & Validate → Batch Process → LLM Classification → Validate & Store → Return Results
-     ↓              ↓                  ↓                 ↓                    ↓              ↓
-(API Layer)      (Utils)           (Service)         (External)          (Validation)     (Models)
-```
-
 ---
 
 ## 🏗️ Architecture Decisions
@@ -51,16 +43,17 @@ CSV Upload → Parse & Validate → Batch Process → LLM Classification → Val
 ### 1. **Layered Architecture**
 
 ```
-main.py                     # Application entry point
+main.py                    # Application entry point
 ├── app/
 │   ├── api/               # API routes (presentation layer)
 │   │   └── routes.py      # REST endpoints
 │   ├── services/          # Business logic
 │   │   ├── classification_service.py  # Core classification logic
-│   │   └── groq_service.py           # External API integration
+│   │   └── groq_service.py            # External API integration
 │   ├── models/            # Data models
-│   │   └── schemas.py     # Pydantic models for validation
-│   ├── core/              # Configuration
+│   │   ├── types.py       # Annotated types 
+│   │   └── schemas.py     # Pydantic models
+│   ├── config/            # Configuration
 │   │   └── config.py      # Centralized settings
 │   └── utils/             # Utilities
 │       └── csv_parser.py  # CSV handling
@@ -102,14 +95,8 @@ Current implementation uses Python dictionary for storage.
 
 ### 4. **Pydantic for Validation**
 
-All data models use Pydantic with custom validators:
-```python
-@validator('explanation')
-def truncate_explanation(cls, v):
-    if len(v) > 150:
-        return v[:147] + "..."
-    return v
-```
+All data models use Pydantic with custom annotated types:
+
 
 **Benefits**:
 - Automatic type checking and coercion
@@ -153,20 +140,8 @@ Centralized settings with environment variables:
 ### If I Had More Time (Priority Order)
 
 #### 1. **Persistent Database** (High Priority)
-**Current**: In-memory dictionary
+**Current**: In-memory dictionary<br>
 **Improvement**: PostgreSQL or MongoDB
-
-```python
-# Add SQLAlchemy models
-class License(Base):
-    __tablename__ = "licenses"
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, index=True)
-    category = Column(String)
-    explanation = Column(String(150))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
-```
 
 **Benefits**:
 - Data persistence across restarts
@@ -174,52 +149,26 @@ class License(Base):
 - Audit trail with timestamps
 - Concurrent access handling
 
-**Implementation Time**: 4-6 hours
-
 ---
 
 #### 2. **Caching Layer** (High Priority)
 **Improvement**: Redis for classification results
-
-```python
-@lru_cache(maxsize=1000)
-async def classify_license(license_name: str):
-    # Check Redis first
-    cached = await redis.get(f"license:{license_name}")
-    if cached:
-        return json.loads(cached)
-    
-    # Call LLM if cache miss
-    result = await groq_service.classify(license_name)
-    await redis.setex(f"license:{license_name}", 3600, json.dumps(result))
-    return result
-```
 
 **Benefits**:
 - Reduce LLM API calls (cost savings)
 - Faster response times
 - Rate limit protection
 
-**Implementation Time**: 3-4 hours
-
 ---
 
 #### 3. **Batch Processing Optimization** (Medium Priority)
-**Current**: Sequential processing
+**Current**: Sequential processing<br>
 **Improvement**: Async concurrent processing
-
-```python
-async def classify_multiple(self, licenses: List[str]):
-    tasks = [self.classify_license(lic) for lic in licenses]
-    return await asyncio.gather(*tasks, return_exceptions=True)
-```
 
 **Benefits**:
 - 10x faster for large files
 - Better resource utilization
 - Improved user experience
-
-**Implementation Time**: 2-3 hours
 
 ---
 
@@ -238,22 +187,9 @@ GET /api/v1/export/{format}         # Export as CSV/JSON/Excel
 - Export capabilities
 - Visualization support
 
-**Implementation Time**: 6-8 hours
-
 ---
 
 #### 5. **Authentication & Authorization** (Medium Priority)
-
-```python
-from fastapi.security import OAuth2PasswordBearer
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-@router.post("/classify")
-async def classify(token: str = Depends(oauth2_scheme)):
-    user = verify_token(token)
-    # ... classification logic
-```
 
 **Benefits**:
 - Multi-tenant support
@@ -279,8 +215,6 @@ async def classify(token: str = Depends(oauth2_scheme)):
 - Better accuracy for domain
 - Privacy (no external API)
 
-**Implementation Time**: 20-40 hours (including data collection)
-
 ---
 
 #### 7. **Enhanced Testing**
@@ -290,58 +224,18 @@ async def classify(token: str = Depends(oauth2_scheme)):
 - Load testing (Locust/k6)
 - Contract testing for API
 
-**Implementation Time**: 8-10 hours
-
 ---
 
 #### 8. **Monitoring & Observability**
-
-```python
-# Add structured logging
-import structlog
-
-logger = structlog.get_logger()
-
-# Add metrics
-from prometheus_client import Counter, Histogram
-
-classifications_total = Counter('classifications_total', 'Total classifications')
-classification_duration = Histogram('classification_duration_seconds', 'Time to classify')
-```
 
 **Tools**:
 - Prometheus + Grafana for metrics
 - ELK stack for logs
 - Sentry for error tracking
 
-**Implementation Time**: 6-8 hours
-
 ---
 
 #### 9. **CI/CD Pipeline**
-
-```yaml
-# .github/workflows/ci.yml
-name: CI/CD
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run tests
-        run: |
-          pip install -r requirements.txt
-          pytest --cov=app tests/
-      - name: Build Docker
-        run: docker build -t license-classifier .
-      - name: Deploy to production
-        if: github.ref == 'refs/heads/main'
-        run: |
-          # Deploy to cloud
-```
-
-**Implementation Time**: 4-6 hours
 
 ---
 
@@ -353,8 +247,6 @@ Simple React frontend for non-technical users:
 - Editable results table
 - Export functionality
 - Category distribution charts
-
-**Implementation Time**: 16-20 hours
 
 ---
 
@@ -368,33 +260,13 @@ Simple React frontend for non-technical users:
 ### Installation
 
 ```bash
-# Clone repository
-git clone <repository-url>
-cd license-classifier
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env and add your GROQ_API_KEY
 ```
 
 ### Running Locally
 
 ```bash
-# Start server
-python main.py
 
-# Or with hot reload
-uvicorn main:app --reload
-
-# Server runs at http://localhost:8000
-# API docs at http://localhost:8000/docs
 ```
 
 ---
@@ -673,42 +545,6 @@ The system classifies licenses into six semantic categories:
 
 ---
 
-## 🔒 Security Considerations
-
-1. **API Key Management**: Never commit `.env` file
-2. **Input Validation**: CSV files are validated before processing
-3. **Rate Limiting**: Consider adding rate limiting for production
-4. **CORS**: Configure CORS for specific domains in production
-5. **HTTPS**: Use reverse proxy (nginx) with SSL in production
-
----
-
-## 📝 License
-
-This project is for educational and demonstration purposes.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Run tests (`pytest`)
-4. Commit changes (`git commit -m 'Add AmazingFeature'`)
-5. Push to branch (`git push origin feature/AmazingFeature`)
-6. Open Pull Request
-
----
-
-## 📞 Support
-
-For issues or questions:
-- Open an issue on GitHub
-- Check API documentation at `/docs`
-- Review test examples in `/tests`
-
----
-
 ## 🎯 Project Goals Met
 
 ✅ CSV file upload and parsing  
@@ -726,5 +562,3 @@ For issues or questions:
 ✅ Clean architecture with separation of concerns  
 
 ---
-
-**Built with ❤️ using FastAPI, Groq, and modern Python practices**
