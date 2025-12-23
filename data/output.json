@@ -1,0 +1,202 @@
+[
+  {
+    "license_name": "Microsoft Office 365 Business",
+    "category": "Productivity",
+    "explanation": "Enhances office productivity with word processing, spreadsheet, and presentation tools for business use."
+  },
+  {
+    "license_name": "Adobe Creative Cloud",
+    "category": "Design",
+    "explanation": "Adobe Creative Cloud is a suite of creative applications for graphic design, video editing, and digital art, enabling users to create and edit visu..."
+  },
+  {
+    "license_name": "AutoCAD LT",
+    "category": "Design",
+    "explanation": "AutoCAD LT is a commercial CAD software for 2D drafting, design, and documentation purposes, primarily used in architecture, engineering, and const..."
+  },
+  {
+    "license_name": "Zoom Meetings Pro",
+    "category": "Communication",
+    "explanation": "Facilitates remote meetings and video conferencing for teams and businesses."
+  },
+  {
+    "license_name": "Slack Standard Plan",
+    "category": "Communication",
+    "explanation": "Slack enables team collaboration and communication through messaging, file sharing, and video conferencing features."
+  },
+  {
+    "license_name": "GitHub Enterprise",
+    "category": "Development",
+    "explanation": "GitHub Enterprise is a web-based platform for version control, collaboration, and development of software projects."
+  },
+  {
+    "license_name": "Salesforce Sales Cloud",
+    "category": "Productivity",
+    "explanation": "Enhances sales productivity with CRM features, automation, and analytics for sales teams and organizations."
+  },
+  {
+    "license_name": "QuickBooks Online Plus",
+    "category": "Finance",
+    "explanation": "Accounting and bookkeeping software for small businesses and organizations."
+  },
+  {
+    "license_name": "Dropbox Business Advanced",
+    "category": "Productivity",
+    "explanation": "Cloud storage and file sharing solution for teams and businesses, enabling collaboration and data management."
+  },
+  {
+    "license_name": "Atlassian Confluence",
+    "category": "Productivity",
+    "explanation": "Collaborative documentation and knowledge management platform for teams and organizations."
+  },
+  {
+    "license_name": "Atlassian Jira Software",
+    "category": "Development",
+    "explanation": "Project management and issue tracking for software development teams and workflows."
+  },
+  {
+    "license_name": "Google Workspace Business Standard",
+    "category": "Productivity",
+    "explanation": "Google Workspace Business Standard enables teams to collaborate, create, and manage documents, spreadsheets, and presentations efficiently."
+  },
+  {
+    "license_name": "AWS Lambda",
+    "category": "Development",
+    "explanation": "AWS Lambda enables serverless computing, allowing developers to run code without provisioning or managing servers."
+  },
+  {
+    "license_name": "Microsoft Azure DevOps",
+    "category": "Development",
+    "explanation": "Manages software development lifecycle, including version control, project planning, and team collaboration."
+  },
+  {
+    "license_name": "SAP S/4HANA Cloud",
+    "category": "Development",
+    "explanation": "Enterprise resource planning software for business operations management and development."
+  },
+  {
+    "license_name": "Oracle Database Cloud Service",
+    "category": "Development",
+    "explanation": "Provides cloud-based database management and storage for applications and services."
+  },
+  {
+    "license_name": "IBM SPSS Statistics",
+    "category": "Development",
+    "explanation": "Statistical analysis and data visualization for data-driven decision-making and research."
+  },
+  {
+    "license_name": "Tableau Desktop",
+    "category": "Productivity",
+    "explanation": "Data analysis and visualization tool for business insights and decision-making."
+  },
+  {
+    "license_name": "MATLAB",
+    "category": "Development",
+    "explanation": "MATLAB is a high-level programming language and environment primarily used for numerical computation, data analysis, and algorithm development."
+  },
+  {
+    "license_name": "Slack Enterprise Grid",
+    "category": "Communication",
+    "explanation": "Slack Enterprise Grid enables real-time team collaboration and communication across large organizations."
+  },
+  {
+    "license_name": "Trello Business Class",
+    "category": "Productivity",
+    "explanation": "Trello Business Class is a project management tool for organizing tasks and workflows in a visual Kanban board system."
+  },
+  {
+    "license_name": "Visual Studio Enterprise",
+    "category": "Development",
+    "explanation": "Visual Studio Enterprise is a comprehensive integrated development environment (IDE) for building, debugging, and deploying software applications."
+  },
+  {
+    "license_name": "GitLab Ultimate",
+    "category": "Development",
+    "explanation": "GitLab Ultimate is a comprehensive development platform for version control, collaboration, and project management."
+  },
+  {
+    "license_name": "Zendesk Support Suite",
+    "category": "Communication",
+    "explanation": "Zendesk Support Suite facilitates customer service and support through ticket management, chat, and knowledge base features."
+  },
+  {
+    "license_name": "HubSpot Marketing Hub",
+    "category": "Marketing",
+    "explanation": "HubSpot Marketing Hub is a comprehensive marketing automation platform for lead generation, email marketing, and campaign management."
+  },
+  {
+    "license_name": "Asana Premium",
+    "category": "Productivity",
+    "explanation": "Task management and team collaboration platform for efficient workflow organization and productivity enhancement."
+  },
+  {
+    "license_name": "ServiceNow IT Service Management",
+    "category": "Productivity",
+    "explanation": "ServiceNow IT Service Management streamlines workflows, automates tasks, and enhances collaboration for IT teams, boosting productivity and efficie..."
+  },
+  {
+    "license_name": "DocuSign Business Pro",
+    "category": "Productivity",
+    "explanation": "DocuSign facilitates digital document signing, streamlining workflows and increasing productivity for businesses."
+  },
+  {
+    "license_name": "Shopify Plus",
+    "category": "Development",
+    "explanation": "Shopify Plus enables businesses to create and manage online stores, facilitating sales and commerce operations."
+  },
+  {
+    "license_name": "Mailchimp Standard",
+    "category": "Communication",
+    "explanation": "Email marketing platform for sending campaigns, newsletters, and automated messages to subscribers."
+  },
+  {
+    "license_name": "Monday.com Pro",
+    "category": "Productivity",
+    "explanation": "Monday.com Pro is a work operating system for teams, streamlining workflows, tasks, and projects, enhancing productivity and collaboration."
+  },
+  {
+    "license_name": "Notion Team Plan",
+    "category": "Productivity",
+    "explanation": "Notion Team Plan enables collaborative work, note-taking, and task management for teams, enhancing productivity and workflow efficiency."
+  },
+  {
+    "license_name": "Freshdesk Omnichannel",
+    "category": "Communication",
+    "explanation": "Freshdesk Omnichannel facilitates customer support and communication across multiple channels."
+  },
+  {
+    "license_name": "Microsoft Dynamics 365 Sales",
+    "category": "Productivity",
+    "explanation": "Sales management and customer relationship tool for businesses, streamlining sales processes and workflows."
+  },
+  {
+    "license_name": "GitKraken Pro",
+    "category": "Development",
+    "explanation": "GitKraken Pro is a visual Git client for managing version control, facilitating collaboration and code management."
+  },
+  {
+    "license_name": "Bitbucket Premium",
+    "category": "Development",
+    "explanation": "Bitbucket Premium facilitates collaborative development with version control, code review, and project management features."
+  },
+  {
+    "license_name": "Cisco Webex Meetings",
+    "category": "Communication",
+    "explanation": "Enables real-time video conferencing, screen sharing, and virtual meetings for remote collaboration."
+  },
+  {
+    "license_name": "BlueJeans Meetings",
+    "category": "Communication",
+    "explanation": "BlueJeans Meetings facilitates remote video conferencing and online meetings for enhanced collaboration and communication."
+  },
+  {
+    "license_name": "Zoom Video Webinars",
+    "category": "Communication",
+    "explanation": "Enables real-time video conferencing and webinars for remote meetings and presentations."
+  },
+  {
+    "license_name": "Microsoft Power BI Pro",
+    "category": "Productivity",
+    "explanation": "Business intelligence and data visualization tool for data analysis and reporting purposes."
+  }
+]
