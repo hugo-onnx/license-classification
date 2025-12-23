@@ -39,6 +39,7 @@ The system uses a **prompt-engineered LLM approach** with Groq's Llama 3.1 8B mo
 
 ---
 
+<a id="architecture-decisions"></a>
 ## 🏗️ Architecture Decisions
 
 ### 1. **Layered Architecture**
@@ -136,6 +137,7 @@ Centralized settings with environment variables:
 
 ---
 
+<a id="future-improvements"></a>
 ## 🚀 Future Improvements
 
 ### If I Had More Time (Priority Order)
@@ -251,6 +253,7 @@ Simple React frontend for non-technical users:
 
 ---
 
+<a id="quick-start"></a>
 ## 📦 Quick Start
 
 ### Prerequisites
@@ -272,6 +275,7 @@ Simple React frontend for non-technical users:
 
 ---
 
+<a id="api-documentation"></a>
 ## 📚 API Documentation
 
 ### 1. Classify Licenses
@@ -433,6 +437,7 @@ curl -X GET "http://localhost:8000/api/v1/stats"
 
 ---
 
+<a id="testing"></a>
 ## 🧪 Testing
 
 ### Run Tests
@@ -474,6 +479,7 @@ tests/
 
 ---
 
+<a id="docker-deployment"></a>
 ## 🐳 Docker Deployment
 
 ### Build and Run with Docker
