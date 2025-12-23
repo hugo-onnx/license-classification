@@ -200,8 +200,6 @@ GET /api/v1/export/{format}         # Export as CSV/JSON/Excel
 - Rate limiting per user
 - Audit logging
 
-**Implementation Time**: 8-10 hours
-
 ---
 
 #### 6. **Model Fine-Tuning** (Low Priority)
@@ -537,6 +535,658 @@ HEALTHCHECK --interval=30s --timeout=10s \
 
 ---
 
+## 🔧 Advanced Topics
+
+### Scaling to 10K Licenses Per Day
+
+To handle 10,000 license classifications daily, the following architectural changes would be necessary:
+
+#### 1. **Horizontal Scaling with Load Balancing**
+```
+                    ┌──────────────┐
+                    │ Load Balancer│
+                    │   (Nginx)    │
+                    └──────┬───────┘
+                           │
+          ┌────────────────┼────────────────┐
+          ▼                ▼                ▼
+    ┌──────────┐     ┌──────────┐     ┌──────────┐
+    │ API Pod 1│     │ API Pod 2│     │ API Pod N│
+    └──────────┘     └──────────┘     └──────────┘
+          │                │                │
+          └────────────────┼────────────────┘
+                           ▼
+                  ┌─────────────────┐
+                  │  Redis Cache    │
+                  │  + Job Queue    │
+                  └─────────────────┘
+                           │
+                  ┌─────────────────┐
+                  │   PostgreSQL    │
+                  │   (Primary)     │
+                  └─────────────────┘
+```
+
+**Implementation**:
+- Deploy multiple API instances behind Nginx/HAProxy
+- Use Kubernetes for auto-scaling based on CPU/memory
+- Implement health checks for automatic failover
+
+#### 2. **Asynchronous Processing with Message Queues**
+
+**Current**: Synchronous classification (blocking)  
+**Improved**: Background job processing
+
+```python
+# Implementation with Celery + Redis
+from celery import Celery
+
+celery_app = Celery('license_classifier', broker='redis://localhost:6379')
+
+@celery_app.task
+def classify_license_async(license_name: str):
+    """Background task for classification"""
+    result = groq_service.classify_license(license_name)
+    db.save_classification(result)
+    return result
+
+# API endpoint returns job ID immediately
+@router.post("/classify-async")
+async def classify_async(file: UploadFile):
+    licenses = parse_csv(file)
+    job_ids = []
+    for license in licenses:
+        job = classify_license_async.delay(license)
+        job_ids.append(job.id)
+    return {"job_ids": job_ids, "status": "processing"}
+
+# Poll for results
+@router.get("/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    job = celery_app.AsyncResult(job_id)
+    return {"status": job.state, "result": job.result}
+```
+
+**Benefits**:
+- Non-blocking API responses
+- Better resource utilization
+- Retry mechanisms for failed jobs
+
+#### 3. **Aggressive Caching Strategy**
+
+**Multi-Layer Caching**:
+```python
+# L1: In-memory cache (per instance)
+from functools import lru_cache
+
+@lru_cache(maxsize=1000)
+def get_cached_classification(license_name: str):
+    return classification_service.get(license_name)
+
+# L2: Distributed cache (Redis)
+import redis
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
+async def classify_with_cache(license_name: str):
+    # Check L2 cache first
+    cached = redis_client.get(f"license:{license_name}")
+    if cached:
+        return json.loads(cached)
+    
+    # Call LLM if cache miss
+    result = await groq_service.classify(license_name)
+    
+    # Store in cache with 24h TTL
+    redis_client.setex(
+        f"license:{license_name}",
+        86400,  # 24 hours
+        json.dumps(result)
+    )
+    return result
+```
+
+**Cache Hit Ratio Target**: 80%+  
+**Expected Reduction**: 8,000 fewer LLM calls per day
+
+#### 4. **Database Optimization**
+
+**Replace In-Memory Storage with PostgreSQL**:
+```python
+# Use SQLAlchemy with connection pooling
+from sqlalchemy import create_engine
+from sqlalchemy.pool import QueuePool
+
+engine = create_engine(
+    DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=20,  # 20 connections per instance
+    max_overflow=10,
+    pool_pre_ping=True  # Verify connections
+)
+
+# Add indexes for fast queries
+CREATE INDEX idx_license_name ON licenses(name);
+CREATE INDEX idx_category ON licenses(category);
+CREATE INDEX idx_created_at ON licenses(created_at);
+
+# Use read replicas for GET requests
+```
+
+#### 5. **Rate Limiting & Throttling**
+
+**Protect Against Overload**:
+```python
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
+@router.post("/classify")
+@limiter.limit("100/hour")  # 100 classifications per hour per IP
+async def classify_licenses(request: Request, file: UploadFile):
+    # Implementation
+    pass
+```
+
+#### 6. **Batch Processing Optimization**
+
+**Concurrent API Calls**:
+```python
+import asyncio
+
+async def classify_batch(licenses: List[str], batch_size: int = 10):
+    """Process licenses in concurrent batches"""
+    results = []
+    
+    for i in range(0, len(licenses), batch_size):
+        batch = licenses[i:i + batch_size]
+        # Process 10 at a time concurrently
+        tasks = [groq_service.classify_async(lic) for lic in batch]
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        results.extend(batch_results)
+    
+    return results
+```
+
+**Performance**: 10K licenses in ~10-15 minutes (vs. 2+ hours sequential)
+
+#### 7. **Monitoring & Auto-Scaling**
+
+**Key Metrics to Monitor**:
+- API response time (p50, p95, p99)
+- Groq API latency
+- Cache hit ratio
+- Queue depth
+- Error rate
+
+**Auto-Scaling Triggers**:
+```yaml
+# Kubernetes HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: license-classifier-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: license-classifier
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+#### 8. **Cost Optimization**
+
+**Current Cost** (10K daily): ~$50-100/day in LLM API calls  
+**Optimized Cost** with caching: ~$10-20/day
+
+**Further Optimization**:
+- Use smaller Groq model (Llama 3.1 8B → Llama 3.2 3B)
+- Implement smart caching based on license popularity
+- Batch similar licenses for processing
+
+---
+
+### Using Embeddings Instead of Direct Prompting
+
+Embeddings-based classification offers significant advantages for production systems:
+
+#### Architecture Comparison
+
+**Current Approach (Direct Prompting)**:
+```
+License Name → LLM Prompt → Category + Explanation
+Cost: ~$0.01 per classification
+Latency: 500-1000ms
+```
+
+**Embeddings Approach**:
+```
+License Name → Embedding Model → Vector → Similarity Search → Category
+Cost: ~$0.0001 per classification
+Latency: 10-50ms
+```
+
+#### Implementation Strategy
+
+**1. Build Training Dataset**
+
+Collect and label 500-1000 example licenses:
+```python
+training_data = [
+    {"name": "Microsoft Office 365", "category": "Productivity"},
+    {"name": "Adobe Photoshop", "category": "Design"},
+    {"name": "GitHub Enterprise", "category": "Development"},
+    # ... 500+ examples
+]
+```
+
+**2. Generate Embeddings**
+
+Use OpenAI, Cohere, or open-source models:
+```python
+from sentence_transformers import SentenceTransformer
+
+# Use open-source embedding model
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+def generate_embedding(license_name: str):
+    """Generate 384-dimensional vector"""
+    return model.encode(license_name)
+
+# Pre-compute embeddings for all training examples
+category_embeddings = {}
+for category in ["Productivity", "Design", "Communication", ...]:
+    examples = get_examples_for_category(category)
+    embeddings = [generate_embedding(ex) for ex in examples]
+    # Store centroid for each category
+    category_embeddings[category] = np.mean(embeddings, axis=0)
+```
+
+**3. Vector Database for Similarity Search**
+
+Use Pinecone, Weaviate, or Qdrant:
+```python
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
+
+# Initialize vector database
+client = QdrantClient(host="localhost", port=6333)
+
+# Create collection
+client.create_collection(
+    collection_name="license_categories",
+    vectors_config=VectorParams(size=384, distance=Distance.COSINE)
+)
+
+# Index training examples
+for example in training_data:
+    embedding = generate_embedding(example["name"])
+    client.upsert(
+        collection_name="license_categories",
+        points=[{
+            "id": hash(example["name"]),
+            "vector": embedding.tolist(),
+            "payload": {
+                "name": example["name"],
+                "category": example["category"]
+            }
+        }]
+    )
+```
+
+**4. Classification via Similarity Search**
+
+```python
+async def classify_with_embeddings(license_name: str):
+    """Classify using vector similarity"""
+    
+    # 1. Generate embedding for new license
+    query_embedding = generate_embedding(license_name)
+    
+    # 2. Find k-nearest neighbors
+    results = client.search(
+        collection_name="license_categories",
+        query_vector=query_embedding.tolist(),
+        limit=5  # Get top 5 similar licenses
+    )
+    
+    # 3. Vote on category (weighted by similarity)
+    category_votes = {}
+    for result in results:
+        category = result.payload["category"]
+        similarity = result.score
+        category_votes[category] = category_votes.get(category, 0) + similarity
+    
+    # 4. Select category with highest vote
+    predicted_category = max(category_votes, key=category_votes.get)
+    confidence = category_votes[predicted_category] / sum(category_votes.values())
+    
+    # 5. Generate explanation using LLM (only if needed)
+    if confidence < 0.7:  # Low confidence threshold
+        # Fall back to LLM for explanation
+        explanation = await groq_service.generate_explanation(
+            license_name, predicted_category
+        )
+    else:
+        # Use template explanation
+        explanation = f"Similar to {results[0].payload['name']} (confidence: {confidence:.2f})"
+    
+    return {
+        "category": predicted_category,
+        "explanation": explanation,
+        "confidence": confidence
+    }
+```
+
+#### Hybrid Approach (Best of Both Worlds)
+
+```python
+async def classify_hybrid(license_name: str):
+    """Use embeddings for classification, LLM for explanation"""
+    
+    # Fast classification with embeddings
+    embedding_result = await classify_with_embeddings(license_name)
+    
+    # Only use LLM for high-quality explanations
+    if embedding_result["confidence"] > 0.8:
+        explanation = await groq_service.generate_explanation(
+            license_name,
+            embedding_result["category"],
+            max_length=150
+        )
+        return {
+            "category": embedding_result["category"],
+            "explanation": explanation
+        }
+    else:
+        # Low confidence - use full LLM classification
+        return await groq_service.classify_license(license_name)
+```
+
+#### Benefits of Embeddings Approach
+
+| Metric | Direct Prompting | Embeddings | Hybrid |
+|--------|------------------|------------|--------|
+| **Latency** | 500-1000ms | 10-50ms | 50-200ms |
+| **Cost per 10K** | $50-100 | $1-5 | $10-20 |
+| **Accuracy** | 95% | 85-90% | 95% |
+| **Explainability** | High | Low | High |
+| **Scalability** | Limited | Excellent | Good |
+
+#### When to Use Each Approach
+
+- **Direct Prompting**: Low volume (<1K/day), need detailed explanations
+- **Embeddings**: High volume (>10K/day), speed critical, cost-sensitive
+- **Hybrid**: Production systems requiring balance of speed, cost, and quality
+
+---
+
+### Service Versioning Strategy
+
+Proper versioning ensures backward compatibility and smooth transitions:
+
+#### 1. **API Versioning**
+
+**URL-Based Versioning (Recommended)**:
+```python
+# Current implementation
+app.include_router(routes.router, prefix="/api/v1")
+
+# Add v2 without breaking v1
+from app.api import routes_v2
+app.include_router(routes.router, prefix="/api/v1", tags=["v1"])
+app.include_router(routes_v2.router, prefix="/api/v2", tags=["v2"])
+```
+
+**Version Structure**:
+```
+/api/v1/classify          # Original version
+/api/v1/results
+/api/v1/stats
+
+/api/v2/classify          # New features
+/api/v2/results           # Breaking changes
+/api/v2/batch-classify    # New endpoints
+```
+
+**Header-Based Versioning (Alternative)**:
+```python
+from fastapi import Header
+
+@router.post("/classify")
+async def classify(
+    file: UploadFile,
+    api_version: str = Header(default="v1", alias="X-API-Version")
+):
+    if api_version == "v2":
+        return await classify_v2(file)
+    return await classify_v1(file)
+```
+
+#### 2. **Model Versioning**
+
+**Track Model Changes**:
+```python
+# app/models/schemas.py
+
+# V1 Schema
+class LicenseClassificationV1(BaseModel):
+    license_name: str
+    category: str
+    explanation: str
+
+# V2 Schema - Added confidence score
+class LicenseClassificationV2(BaseModel):
+    license_name: str
+    category: str
+    explanation: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    model_version: str = "llama-3.1-8b"
+    classified_at: datetime
+
+# Maintain backward compatibility
+def convert_v2_to_v1(v2_result: LicenseClassificationV2) -> LicenseClassificationV1:
+    """Downgrade V2 to V1 for legacy clients"""
+    return LicenseClassificationV1(
+        license_name=v2_result.license_name,
+        category=v2_result.category,
+        explanation=v2_result.explanation
+    )
+```
+
+#### 3. **Database Schema Versioning**
+
+**Use Alembic for Migrations**:
+```bash
+# Initialize Alembic
+alembic init migrations
+
+# Create migration
+alembic revision --autogenerate -m "Add confidence score column"
+
+# Migration file: versions/001_add_confidence_score.py
+def upgrade():
+    op.add_column('licenses', 
+        sa.Column('confidence', sa.Float, nullable=True, default=1.0)
+    )
+    op.add_column('licenses',
+        sa.Column('model_version', sa.String(50), nullable=True)
+    )
+
+def downgrade():
+    op.drop_column('licenses', 'confidence')
+    op.drop_column('licenses', 'model_version')
+
+# Apply migration
+alembic upgrade head
+```
+
+#### 4. **Configuration Versioning**
+
+**Environment-Based Configuration**:
+```python
+# app/config/config.py
+class Settings(BaseSettings):
+    API_VERSION: str = "v1"
+    MODEL_VERSION: str = "1.0.0"
+    
+    # Feature flags for gradual rollout
+    ENABLE_EMBEDDINGS: bool = False
+    ENABLE_BATCH_PROCESSING: bool = True
+    ENABLE_CACHING: bool = True
+    
+    # Model configuration per version
+    GROQ_MODEL_V1: str = "llama-3.1-8b-instant"
+    GROQ_MODEL_V2: str = "llama-3.3-70b-versatile"
+    
+    class Config:
+        env_file = f".env.{os.getenv('ENVIRONMENT', 'development')}"
+```
+
+#### 5. **Docker Image Versioning**
+
+**Semantic Versioning**:
+```bash
+# Tag strategy
+docker build -t license-classifier:1.0.0 .
+docker build -t license-classifier:1.0 .
+docker build -t license-classifier:1 .
+docker build -t license-classifier:latest .
+
+# Version matrix
+1.0.0 - Initial release
+1.1.0 - Added embeddings support (backward compatible)
+1.2.0 - Added batch processing (backward compatible)
+2.0.0 - Changed response format (breaking change)
+```
+
+**docker-compose with versioning**:
+```yaml
+version: '3.8'
+
+services:
+  api-v1:
+    image: license-classifier:1.2.0
+    container_name: license_classifier_v1
+    ports:
+      - "8000:8000"
+    environment:
+      - API_VERSION=v1
+  
+  api-v2:
+    image: license-classifier:2.0.0
+    container_name: license_classifier_v2
+    ports:
+      - "8001:8000"
+    environment:
+      - API_VERSION=v2
+```
+
+#### 6. **Deprecation Strategy**
+
+**Announce Deprecations Early**:
+```python
+from fastapi import status
+from datetime import datetime
+
+@router.get("/old-endpoint", deprecated=True)
+async def old_endpoint():
+    """
+    Deprecated: This endpoint will be removed in v3.0
+    Use /api/v2/new-endpoint instead
+    Removal date: 2025-06-01
+    """
+    return {
+        "warning": "This endpoint is deprecated",
+        "deprecation_date": "2025-03-01",
+        "sunset_date": "2025-06-01",
+        "migration_guide": "https://docs.example.com/migration/v2",
+        "data": legacy_logic()
+    }
+```
+
+**Response Headers**:
+```python
+@router.get("/results")
+async def get_results(response: Response):
+    # Add deprecation warning
+    if api_version == "v1":
+        response.headers["Deprecation"] = "true"
+        response.headers["Sunset"] = "Sat, 01 Jun 2025 00:00:00 GMT"
+        response.headers["Link"] = '<https://api.example.com/v2/results>; rel="successor-version"'
+    
+    return results
+```
+
+#### 7. **Version Testing Strategy**
+
+**Parallel Testing**:
+```python
+# tests/test_versions.py
+import pytest
+
+@pytest.mark.parametrize("version", ["v1", "v2"])
+async def test_classify_endpoint(version, client):
+    """Test classification across all versions"""
+    response = await client.post(f"/api/{version}/classify", files={"file": csv_file})
+    assert response.status_code == 200
+    
+    if version == "v1":
+        assert "confidence" not in response.json()[0]
+    elif version == "v2":
+        assert "confidence" in response.json()[0]
+```
+
+#### 8. **Monitoring Version Usage**
+
+**Track Version Adoption**:
+```python
+from prometheus_client import Counter
+
+version_requests = Counter(
+    'api_requests_by_version',
+    'API requests by version',
+    ['version', 'endpoint']
+)
+
+@router.post("/classify")
+async def classify(request: Request):
+    version = extract_version(request)
+    version_requests.labels(version=version, endpoint="/classify").inc()
+    # ... implementation
+```
+
+#### Version Lifecycle
+
+```
+Development → Alpha → Beta → GA → Deprecated → Sunset
+    ↓          ↓       ↓      ↓        ↓          ↓
+  Feature   Internal Public  Stable  Announce  Remove
+  Complete  Testing Testing  Release Warning   Support
+
+Timeline Example:
+v1.0.0: 2024-01-01 (GA)
+v2.0.0: 2024-06-01 (GA) → v1 deprecated
+v2.0.0: 2024-09-01 → v1 sunset announced (3 months notice)
+v2.0.0: 2024-12-01 → v1 removed
+```
+
+---
+
 ## 📊 Categories
 
 The system classifies licenses into six semantic categories:
@@ -556,7 +1206,7 @@ The system classifies licenses into six semantic categories:
 
 ✅ CSV file upload and parsing  
 ✅ LLM-based classification (Groq API)  
-✅ **150-character explanation limit (strictly enforced)**  
+✅ 150-character explanation limit (strictly enforced) 
 ✅ Six semantic categories  
 ✅ RESTful API with FastAPI  
 ✅ View all/specific results  
